@@ -109,9 +109,6 @@ struct Args {
 
     #[structopt(short, long, parse(from_str), default_value = "red")]
     failure_color: Color,
-
-    #[structopt(short, long, parse(from_str))]
-    cool_color: Color,
 }
 
 fn main() -> Result<()> {
