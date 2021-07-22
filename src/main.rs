@@ -4,12 +4,13 @@ use serde::Deserialize;
 use structopt::StructOpt;
 
 use std::{
-    fmt::Display,
     fs::{read_to_string, File},
     path::{Path, PathBuf},
 };
 
 use glob::glob;
+
+use colored::*;
 
 #[derive(Debug)]
 enum TestResult {
@@ -31,15 +32,15 @@ enum TestFailure {
     Error(anyhow::Error),
 }
 
-impl Display for TestFailure {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+impl TestFailure {
+    fn display_failure(&self, colors: &ColorOptions) -> String {
         match self {
-            TestFailure::IncorrectMove(expected, actual) => write!(
-                f,
+            TestFailure::IncorrectMove(expected, actual) => format!(
                 "Moved in the Wrong Direction: Should have moved \"{}\" but moved \"{}\"",
-                expected, actual
+                expected.color(colors.expected),
+                actual.color(colors.actual),
             ),
-            TestFailure::Error(e) => write!(f, "Error {}", e),
+            TestFailure::Error(e) => format!("Error {}", e),
         }
     }
 }
@@ -98,10 +99,40 @@ struct Args {
         default_value = "./tests/"
     )]
     test_directory: String,
+
+    #[structopt(short, long)]
+    expected_color: Option<String>,
+
+    #[structopt(short, long)]
+    actual_color: Option<String>,
+
+    #[structopt(short, long)]
+    failure_color: Option<String>,
+}
+
+struct ColorOptions {
+    expected: Color,
+    actual: Color,
+    failure: Color,
+}
+
+fn parse_color(input: &Option<String>, default: Color) -> Color {
+    match input {
+        Some(s) => s.parse().unwrap_or_else(|_| {
+            eprintln!("Failed to parse color {}, falling back to default", s,);
+            default
+        }),
+        None => default,
+    }
 }
 
 fn main() -> Result<()> {
     let args = Args::from_args();
+    let color_options = ColorOptions {
+        expected: parse_color(&args.expected_color, Color::Yellow),
+        actual: parse_color(&args.actual_color, Color::Blue),
+        failure: parse_color(&args.failure_color, Color::Red),
+    };
 
     let client = Client::new();
 
@@ -134,9 +165,10 @@ fn main() -> Result<()> {
     for r in results {
         if let Err(f) = r.result {
             println!(
-                "Failure on test: {}\nReason: {}\n\n",
+                "{}: {}\nReason: {}\n\n",
+                "Failure on test".color(color_options.failure),
                 r.test_path.to_str().unwrap(),
-                f
+                f.display_failure(&color_options)
             );
         }
     }
