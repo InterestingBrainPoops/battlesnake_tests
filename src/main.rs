@@ -34,12 +34,12 @@ enum TestFailure {
 }
 
 impl TestFailure {
-    fn display_failure(&self, colors: &ColorOptions) -> String {
+    fn display_failure(&self, args: &Args) -> String {
         match self {
             TestFailure::IncorrectMove(expected, actual) => format!(
                 "Moved in the Wrong Direction: Should have moved \"{}\" but moved \"{}\"",
-                expected.color(colors.expected),
-                actual.color(colors.actual),
+                expected.color(args.expected_color),
+                actual.color(args.actual_color),
             ),
             TestFailure::Error(e) => format!("Error {}", e),
         }
@@ -101,39 +101,21 @@ struct Args {
     )]
     test_directory: String,
 
-    #[structopt(short, long)]
-    expected_color: Option<String>,
+    #[structopt(short, long, parse(from_str), default_value = "yellow")]
+    expected_color: Color,
 
-    #[structopt(short, long)]
-    actual_color: Option<String>,
+    #[structopt(short, long, parse(from_str), default_value = "blue")]
+    actual_color: Color,
 
-    #[structopt(short, long)]
-    failure_color: Option<String>,
-}
+    #[structopt(short, long, parse(from_str), default_value = "red")]
+    failure_color: Color,
 
-struct ColorOptions {
-    expected: Color,
-    actual: Color,
-    failure: Color,
-}
-
-fn parse_color(input: &Option<String>, default: Color) -> Color {
-    match input {
-        Some(s) => s.parse().unwrap_or_else(|_| {
-            eprintln!("Failed to parse color {}, falling back to default", s,);
-            default
-        }),
-        None => default,
-    }
+    #[structopt(short, long, parse(from_str))]
+    cool_color: Color,
 }
 
 fn main() -> Result<()> {
     let args = Args::from_args();
-    let color_options = ColorOptions {
-        expected: parse_color(&args.expected_color, Color::Yellow),
-        actual: parse_color(&args.actual_color, Color::Blue),
-        failure: parse_color(&args.failure_color, Color::Red),
-    };
 
     let client = Client::new();
 
@@ -167,9 +149,9 @@ fn main() -> Result<()> {
         if let Err(f) = &r.result {
             println!(
                 "{}: {}\nReason: {}\n\n",
-                "Failure on test".color(color_options.failure),
+                "Failure on test".color(args.failure_color),
                 r.test_path.to_str().unwrap(),
-                f.display_failure(&color_options)
+                f.display_failure(&args)
             );
         }
     }
