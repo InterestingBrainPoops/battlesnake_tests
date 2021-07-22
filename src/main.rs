@@ -4,11 +4,7 @@ use serde::Deserialize;
 use serde_json::from_str;
 use structopt::StructOpt;
 
-use std::{
-    fs::{read_to_string, File},
-    path::{Path, PathBuf},
-    process,
-};
+use std::{fs::read_to_string, path::PathBuf, process};
 
 use glob::glob;
 
@@ -150,7 +146,7 @@ fn main() -> Result<()> {
             Ok(TestResult::IncorrectMove(e, a)) => Err(TestFailure::IncorrectMove(e, a)),
             Err(e) => Err(TestFailure::Error(e)),
         };
-        let test_run = TestRun { result, test_case };
+        let test_run = TestRun { test_case, result };
         results.push(test_run);
     }
 
@@ -173,7 +169,7 @@ fn main() -> Result<()> {
                     .description
                     .as_ref()
                     .map(|a| format!("Description: {} \n", a))
-                    .unwrap_or("".to_owned()),
+                    .unwrap_or_else(|| "".to_owned()),
                 f.display_failure(&args)
             );
         }
