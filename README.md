@@ -1,14 +1,21 @@
 # battlesnake_tests
-A collection of battlesnake JSON states along with their expected move.  Feel free to use this to test any of your battlesnakes.
+A collection of battlesnake JSON states along with their expected move(s).  Feel free to use this to test any of your battlesnakes.
 
 ## Format
-Each test will be in a folder of its own in the `/tests/` folder.
-The input will be provided in `input.json` and the expected output will be `output.json`.
-For example, test number 03 can be found at : `/tests/03/input.json`.
-The inputs and outputs are currently compliant with the API v1 for battlesnake.
+Each test will be in a file of its number.  
+Test 01 can be found at `/tests/01.json`  
+Each json will be like the following: 
+```
+{
+state: board_state,
+expected: ["up", "down"]
+}
+```  
+`state` is the board state that gets sent to the snake.  
+`expected` is an array of maximum size 4 that holds the correct moves.  
 
 ## Difficulty
-These tests might be very hard, and that is the intention. There might be some easier tests in there, but most of them are intended to strain your evaluation function.
+These tests might be very hard, and that is the intention.  There might be some easier tests in there, but most of them are intended to strain your evaluation function.
 
 ## CLI
 
