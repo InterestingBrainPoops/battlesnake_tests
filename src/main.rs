@@ -1,6 +1,7 @@
 use anyhow::Result;
 use reqwest::blocking::Client;
 use serde::Deserialize;
+use serde_json::from_str;
 use structopt::StructOpt;
 
 use std::{
@@ -13,34 +14,60 @@ use glob::glob;
 
 use colored::*;
 
+#[derive(Deserialize)]
+struct TestCaseFile {
+    state: serde_json::Value,
+    expected: Vec<String>,
+    description: Option<String>,
+}
+
+struct TestCase {
+    state: serde_json::Value,
+    expected: Vec<String>,
+    description: Option<String>,
+    path: PathBuf,
+}
+
 #[derive(Debug)]
 enum TestResult {
     CorrectMove,
     /// Expected, Actual
-    IncorrectMove(String, String),
+    IncorrectMove(Vec<String>, String),
 }
 
-#[derive(Debug)]
 struct TestRun {
-    test_path: PathBuf,
+    test_case: TestCase,
     result: Result<(), TestFailure>,
 }
 
 #[derive(Debug)]
 enum TestFailure {
     /// Expected, Actual
-    IncorrectMove(String, String),
+    IncorrectMove(Vec<String>, String),
     Error(anyhow::Error),
 }
 
 impl TestFailure {
     fn display_failure(&self, args: &Args) -> String {
         match self {
-            TestFailure::IncorrectMove(expected, actual) => format!(
-                "Moved in the Wrong Direction: Should have moved \"{}\" but moved \"{}\"",
-                expected.color(args.expected_color),
-                actual.color(args.actual_color),
-            ),
+            TestFailure::IncorrectMove(expected, actual) => {
+                if expected.len() == 1 {
+                    let expected = expected.get(0).unwrap();
+                    format!(
+                        "Moved in the Wrong Direction: Should have moved \"{}\" but moved \"{}\"",
+                        expected.color(args.expected_color),
+                        actual.color(args.actual_color),
+                    )
+                } else {
+                    let string_wrapped: Vec<_> =
+                        expected.iter().map(|e| format!("\"{}\"", e)).collect();
+                    format!(
+                        "Moved in the Wrong Direction: Should have moved in one of [{}] but moved \"{}\"",
+                        string_wrapped.join(", ").color(args.expected_color),
+                        actual.color(args.actual_color),
+                    )
+                }
+            }
             TestFailure::Error(e) => format!("Error {}", e),
         }
     }
@@ -57,28 +84,18 @@ fn default_shout() -> Option<String> {
     None
 }
 
-fn run_test(input_path: &Path, client: &Client, url: &str) -> Result<TestResult> {
-    let output_path = {
-        let mut path = input_path.to_path_buf();
-        path.set_file_name("output.json");
-        path
-    };
-
-    let input = File::open(input_path)?;
-    let output_contents = read_to_string(output_path)?;
-    let output_json: BattlesnakeMoveResponse = serde_json::from_str(&output_contents)?;
-
+fn run_test(test_case: &TestCase, client: &Client, url: &str) -> Result<TestResult> {
     let response_json: BattlesnakeMoveResponse = client
         .post(url)
-        .body(input)
+        .body(test_case.state.to_string())
         .send()?
         .error_for_status()?
         .json()?;
 
-    let result: TestResult = if response_json.r#move == output_json.r#move {
+    let result: TestResult = if test_case.expected.contains(&response_json.r#move) {
         TestResult::CorrectMove
     } else {
-        TestResult::IncorrectMove(output_json.r#move, response_json.r#move)
+        TestResult::IncorrectMove(test_case.expected.clone(), response_json.r#move)
     };
 
     Ok(result)
@@ -118,18 +135,22 @@ fn main() -> Result<()> {
 
     let mut results: Vec<TestRun> = vec![];
 
-    for entry in glob(&format!("{}/**/input.json", args.test_directory))? {
+    for entry in glob(&format!("{}/**/*.json", args.test_directory))? {
         let path = entry?;
-        let x = run_test(&path, &client, &args.url);
+        let test_case_file: TestCaseFile = from_str(&read_to_string(&path)?)?;
+        let test_case = TestCase {
+            state: test_case_file.state,
+            expected: test_case_file.expected,
+            description: test_case_file.description,
+            path,
+        };
+        let x = run_test(&test_case, &client, &args.url);
         let result = match x {
             Ok(TestResult::CorrectMove) => Ok(()),
             Ok(TestResult::IncorrectMove(e, a)) => Err(TestFailure::IncorrectMove(e, a)),
             Err(e) => Err(TestFailure::Error(e)),
         };
-        let test_run = TestRun {
-            result,
-            test_path: path,
-        };
+        let test_run = TestRun { result, test_case };
         results.push(test_run);
     }
 
@@ -145,9 +166,14 @@ fn main() -> Result<()> {
     for r in &results {
         if let Err(f) = &r.result {
             println!(
-                "{}: {}\nReason: {}\n\n",
+                "{}: {}\n{}Reason: {}\n\n",
                 "Failure on test".color(args.failure_color),
-                r.test_path.to_str().unwrap(),
+                r.test_case.path.to_str().unwrap(),
+                r.test_case
+                    .description
+                    .as_ref()
+                    .map(|a| format!("Description: {} \n", a))
+                    .unwrap_or("".to_owned()),
                 f.display_failure(&args)
             );
         }
