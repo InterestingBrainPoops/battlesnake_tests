@@ -1,11 +1,12 @@
 use anyhow::Result;
 use reqwest::blocking::Client;
 use serde::Deserialize;
+use structopt::StructOpt;
 
 use std::{
     fmt::Display,
     fs::{read_to_string, File},
-    path::PathBuf,
+    path::{Path, PathBuf},
 };
 
 use glob::glob;
@@ -54,9 +55,9 @@ fn default_shout() -> Option<String> {
     None
 }
 
-fn run_test(input_path: &PathBuf, client: &Client, url: &str) -> Result<TestResult> {
+fn run_test(input_path: &Path, client: &Client, url: &str) -> Result<TestResult> {
     let output_path = {
-        let mut path = input_path.clone();
+        let mut path = input_path.to_path_buf();
         path.set_file_name("output.json");
         path
     };
@@ -81,16 +82,34 @@ fn run_test(input_path: &PathBuf, client: &Client, url: &str) -> Result<TestResu
     Ok(result)
 }
 
+#[derive(Debug, StructOpt)]
+#[structopt(
+    name = "battlesnake_tests",
+    about = "A simple CLI that can run a set of Battlesnake Tests against a given URL"
+)]
+struct Args {
+    #[structopt(short = "u", long = "url", name = "Battlesnake URL to test against")]
+    url: String,
+
+    #[structopt(
+        short = "d",
+        long = "dir",
+        name = "Directory containing test cases",
+        default_value = "./tests/"
+    )]
+    test_directory: String,
+}
+
 fn main() -> Result<()> {
-    let root_path = "./tests";
-    let url = "http://localhost:8000/constant-carter/move";
+    let args = Args::from_args();
+
     let client = Client::new();
 
     let mut results: Vec<TestRun> = vec![];
 
-    for entry in glob(&format!("{}/**/input.json", root_path))? {
+    for entry in glob(&format!("{}/**/input.json", args.test_directory))? {
         let path = entry?;
-        let x = run_test(&path, &client, url);
+        let x = run_test(&path, &client, &args.url);
         let result = match x {
             Ok(TestResult::CorrectMove) => Ok(()),
             Ok(TestResult::IncorrectMove(e, a)) => Err(TestFailure::IncorrectMove(e, a)),
