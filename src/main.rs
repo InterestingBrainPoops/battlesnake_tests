@@ -6,6 +6,7 @@ use structopt::StructOpt;
 use std::{
     fs::{read_to_string, File},
     path::{Path, PathBuf},
+    process,
 };
 
 use glob::glob;
@@ -162,8 +163,8 @@ fn main() -> Result<()> {
         successful_count, total_count
     );
 
-    for r in results {
-        if let Err(f) = r.result {
+    for r in &results {
+        if let Err(f) = &r.result {
             println!(
                 "{}: {}\nReason: {}\n\n",
                 "Failure on test".color(color_options.failure),
@@ -171,6 +172,10 @@ fn main() -> Result<()> {
                 f.display_failure(&color_options)
             );
         }
+    }
+
+    if results.iter().any(|r| r.result.is_err()) {
+        process::exit(1)
     }
 
     Ok(())
