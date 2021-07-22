@@ -26,4 +26,6 @@ To provide CLI arguments use a double dash `--` after run, and then you can prov
 Ex: `cargo run -- --url http://localhost:8000'
 
 ## Thanks
-This was inspired by the [PoorFish](https://github.com/mcostalba/PoorFish) testset for chess engines.
+This was inspired by the [PoorFish](https://github.com/mcostalba/PoorFish) testset for chess engines.  
+Smallsco for the format suggestion  
+TheApX aka Butterfly :butterfly: Tamer for the suggestion of having multiple possible correct moves.
